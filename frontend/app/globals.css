@@ -123,3 +123,26 @@ a.btn-primary{display:flex;align-items:center;justify-content:center;text-decora
   .row-title{font-size:16px}
   .row-meta{font-size:13px}
 }
+
+
+/* 보고서 상세 */
+.main.detail{padding-top:40px}
+.back-link{display:inline-flex;align-items:center;gap:4px;font-size:14px;font-weight:500;color:var(--muted);text-decoration:none;margin-bottom:12px}
+.back-link:hover{color:var(--primary)}
+.back-link svg{width:16px;height:16px}
+.card.detail-card{padding:36px 44px}
+.info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px}
+.info{display:flex;flex-direction:column;gap:4px}
+.info-label{font-size:13px;font-weight:500;color:var(--muted)}
+.info-value{font-size:17px;font-weight:700}
+.divider{height:1px;background:var(--line);margin:28px 0}
+.section-title{display:block;font-size:15px;font-weight:700;margin-bottom:10px}
+.body-text{margin:0;font-size:16px;line-height:1.7;color:var(--body);white-space:pre-line}
+@media (max-width:640px){
+  .main.detail{padding-top:24px}
+  .card.detail-card{padding:24px 20px}
+  .info-grid{grid-template-columns:1fr;gap:16px}
+  .divider{margin:22px 0}
+}
+/* 보고서가 여러 개면 카드 사이를 띄운다 */
+.detail-card + .detail-card{margin-top:20px}
