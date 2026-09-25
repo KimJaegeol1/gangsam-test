@@ -1,11 +1,14 @@
+from datetime import datetime
+
+import psycopg
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from auth import create_token
+from auth import create_token, get_current_teacher
 from db import get_conn
 
 load_dotenv()  # backend/.env 읽기
@@ -61,3 +64,77 @@ def student_login(body: LoginRequest):
         raise HTTPException(status_code=401, detail="이름 또는 전화번호가 맞지 않습니다.")
 
     return {"token": create_token(student["id"], "student"), "student": student}
+
+
+# ---------- 3. 보고서를 쓸 수업 목록 ----------
+
+@app.get("/api/teachers/me/lessons")
+def my_lessons(teacher_id: int = Depends(get_current_teacher)):
+    with get_conn() as conn:
+        lessons = conn.execute(
+            """
+            SELECT l.id AS lesson_id, s.name AS student_name, l.lesson_type,
+                   l.started_at, l.ended_at,
+                   CASE WHEN l.main_teacher_id = %(teacher_id)s THEN 'main' ELSE 'assistant' END AS role
+            FROM lesson l
+            JOIN student s ON s.id = l.student_id
+            WHERE l.main_teacher_id = %(teacher_id)s
+               OR l.id IN (SELECT lesson_id FROM lesson_assistant WHERE teacher_id = %(teacher_id)s)
+            ORDER BY l.started_at DESC
+            """,
+            {"teacher_id": teacher_id},
+        ).fetchall()
+
+    return lessons
+
+
+# ---------- 4. 보고서 등록 ----------
+
+class ReportRequest(BaseModel):
+    lesson_id: int
+    started_at: datetime
+    ended_at: datetime
+    report_content: str
+    homework_content: str | None = None  # 숙제가 없으면 null
+
+
+@app.post("/api/reports", status_code=201)
+def create_report(body: ReportRequest, teacher_id: int = Depends(get_current_teacher)):
+    if not body.report_content.strip():
+        raise HTTPException(status_code=400, detail="보고서 내용을 입력해주세요.")
+
+    with get_conn() as conn:
+        lesson = conn.execute(
+            """
+            SELECT main_teacher_id FROM lesson
+            WHERE id = %(lesson_id)s
+              AND (main_teacher_id = %(teacher_id)s
+                   OR id IN (SELECT lesson_id FROM lesson_assistant WHERE teacher_id = %(teacher_id)s))
+            """,
+            {"lesson_id": body.lesson_id, "teacher_id": teacher_id},
+        ).fetchone()
+
+        if lesson is None:
+            raise HTTPException(status_code=403, detail="이 수업의 선생님이 아닙니다.")
+
+        if lesson["main_teacher_id"] == teacher_id:
+            if body.ended_at <= body.started_at:
+                raise HTTPException(status_code=400, detail="종료 시각은 시작 시각보다 늦어야 합니다.")
+            conn.execute(
+                "UPDATE lesson SET started_at = %s, ended_at = %s WHERE id = %s",
+                (body.started_at, body.ended_at, body.lesson_id),
+            )
+
+        try:
+            report = conn.execute(
+                """
+                INSERT INTO report (lesson_id, teacher_id, report_content, homework_content)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (body.lesson_id, teacher_id, body.report_content, body.homework_content),
+            ).fetchone()
+        except psycopg.errors.UniqueViolation:
+            raise HTTPException(status_code=409, detail="이미 이 수업에 보고서를 썼습니다.")
+
+    return {"report_id": report["id"]}
