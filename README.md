@@ -5,9 +5,8 @@
 | 폴더·파일 | 내용 |
 |---|---|
 | `frontend/` | 화면. Next.js 16 (App Router, TypeScript) |
-| `backend/` | API. FastAPI, psycopg 3, JWT |
+| `backend/` | API. FastAPI, psycopg 3, JWT. `API.md`(API 명세) |
 | `db/` | `schema.sql`(테이블), `seed.sql`(테스트 데이터), `README.md`(DB 설계 문서) |
-| `API.md` | API 명세 |
 
 과제 제출 형식(`/frontend`, `/db`)에 API 서버인 `/backend`를 더했다. 화면은 `/api/...`만 부르고, `frontend/next.config.ts`의 rewrites가 이 요청을 FastAPI로 넘긴다.
 
@@ -177,7 +176,7 @@ seed 데이터로 보면 이렇다.
 | 4 | POST | `/api/reports` | 보고서 등록 |
 | 5 | GET | `/api/students/me/reports` | 보고서 목록과 누적 수업 완료 횟수 |
 
-요청, 응답, 에러 코드는 [`API.md`](API.md)에 있다.
+요청, 응답, 에러 코드는 [`backend/API.md`](backend/API.md)에 있다.
 
 ## 6. 구현 범위와 개선 방향
 
