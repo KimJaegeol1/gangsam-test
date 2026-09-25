@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from auth import create_token, get_current_teacher
+from auth import create_token, get_current_student, get_current_teacher
 from db import get_conn
 
 load_dotenv()  # backend/.env 읽기
@@ -138,3 +138,43 @@ def create_report(body: ReportRequest, teacher_id: int = Depends(get_current_tea
             raise HTTPException(status_code=409, detail="이미 이 수업에 보고서를 썼습니다.")
 
     return {"report_id": report["id"]}
+
+
+# ---------- 5. 보고서 목록과 누적 수업 완료 횟수 ----------
+
+@app.get("/api/students/me/reports")
+def my_reports(student_id: int = Depends(get_current_student)):
+    with get_conn() as conn:
+        count = conn.execute(
+            """
+            SELECT COUNT(*) AS completed_count
+            FROM report r
+            JOIN lesson l ON l.id = r.lesson_id
+            WHERE l.student_id = %s
+              AND l.lesson_type = 'regular'
+              AND r.teacher_id = l.main_teacher_id
+            """,
+            (student_id,),
+        ).fetchone()
+
+        lessons = conn.execute(
+            """
+            SELECT l.id AS lesson_id, l.lesson_type, l.started_at, l.ended_at,
+                   json_agg(
+                       json_build_object(
+                           'teacher_name', t.name,
+                           'report_content', r.report_content,
+                           'homework_content', r.homework_content
+                       ) ORDER BY r.id
+                   ) AS reports
+            FROM lesson l
+            JOIN report r ON r.lesson_id = l.id
+            JOIN teacher t ON t.id = r.teacher_id
+            WHERE l.student_id = %s
+            GROUP BY l.id
+            ORDER BY l.started_at DESC
+            """,
+            (student_id,),
+        ).fetchall()
+
+    return {"completed_count": count["completed_count"], "lessons": lessons}
